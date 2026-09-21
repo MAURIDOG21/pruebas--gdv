@@ -1,0 +1,115 @@
+Fundamento Teórico — SIGES-PROGRESO (Sprints 1: Digitalización, 2: BI y Reportes)
+
+1) Arquitectura de Software y Patrones de Diseño
+- Patrón MVC (Model–View–Controller):
+  - Modelos Eloquent (`app/Models/*`) encapsulan lógica de dominio y persistencia.
+  - Vistas Filament/Blade (`resources/views/filament/*`, `resources/views/pdf/*`) presentan UI y documentos.
+  - Controladores (`app/Http/Controllers/*`) orquestan flujos (p. ej. `ApiController`, `PdfGeneratorController`).
+- Inversión de Control e Inyección de Dependencias:
+  - Servicios y dependencias se resuelven vía el contenedor de Laravel (p. ej. `Barryvdh\DomPDF\Facade\Pdf`).
+- Facades y Service Providers:
+  - Facades: `Pdf`, `DB`, `Auth`, `Notification` simplifican acceso a servicios.
+  - `App\Providers\Filament\DashboardPanelProvider` configura el panel, colores, notificaciones y middleware.
+- Patrón Observador (Eventos y Listeners en Modelos):
+  - Hooks de Eloquent (`booted`, `creating`) usados como observadores implícitos:
+    - `MedicalRecord::creating` genera `record_number` con secuencia PostgreSQL.
+    - `Appointment::booted` autogenera `ticket_number` para walk‑in y completa `service_id/doctor_id/date` desde `ClinicSchedule`.
+    - `Patient::created` crea automáticamente su `MedicalRecord`.
+- Arquitectura de Componentes con Filament:
+  - Resources, Pages, Widgets y RelationManagers estructuran UI modular.
+  - Reutilización de Schemas (`Schemas/*`) para `Form` e `Infolist` asegura consistencia visual.
+- Gestión de Estado (Livewire 3 dentro de Filament):
+  - Formularios reactivos (`->live()`, `->reactive()`), acciones con `Action::make`, y notificaciones en tiempo real con `databaseNotificationsPolling('10s')`.
+- Middleware de Negocio (Políticas transversales):
+  - `CheckShiftStatus` impone regla de negocio: solo operar con turno de clínica abierto; redirige a `ShiftManagement`.
+
+2) Ingeniería de Software y Metodologías
+- Metodología Ágil (Sprints):
+  - Sprint 1 (Digitalización): modelos, migraciones, CRUD con Filament, flujos de citas y expedientes, documentos PDF.
+  - Sprint 2 (BI y Reportes): dashboards, KPIs, ApexCharts, exportación a Excel, notificaciones.
+- Historias de Usuario y MVP:
+  - Alcances iterativos visibles en Resources y Pages (Pacientes, Citas, Expedientes, Ausencias).
+- Versionamiento y Flujo de Trabajo (Git):
+  - Estructura y README sugieren buenas prácticas (scripts de build/optimize, seeders). Git‑flow recomendado para ramas de features y releases.
+
+3) Programación Orientada a Objetos (POO) y Backend
+- Clases, Objetos y Namespaces:
+  - Modelos (`Appointment`, `MedicalRecord`, `Patient`, `ClinicSchedule`, `SomatometricReading`, `MedicalLeave`, `User`) organizados por dominio.
+- Encapsulamiento y Abstracción:
+  - Lógica de negocio en modelos: generación de folios (`MedicalLeave`), tickets (`Appointment`), reglas de turnos (`ClinicSchedule`).
+- Polimorfismo y Composición:
+  - Enums (`App\Enums/*`) estandarizan estados y habilitan polimorfismo en UI (badges/colores) y lógica.
+- Traits:
+  - `HasFactory`, `SoftDeletes`, `Notifiable`, `HasApiTokens` añaden capacidades transversales.
+- Enums en PHP 8+:
+  - `AppointmentStatus`, `VisitType`, `Shift`, `PatientType`, `EmployeeStatus`, `UserRole`, `Locality` usados en `casts` para tipado fuerte y coherencia.
+
+4) Diseño y Gestión de Bases de Datos
+- Modelo Relacional y Normalización:
+  - Tablas separadas para entidades y relaciones con claves foráneas (`appointments.medical_record_id`, `clinic_schedules.user_id`, etc.).
+- Claves Primarias y Foráneas:
+  - Integridad referencial: `cascadeOnDelete` (`somatometric_readings.medical_record_id`), `restrictOnDelete` (vínculo `appointments.clinic_schedule_id`).
+- Secuencias (PostgreSQL):
+  - `medical_record_number_seq` y uso en `MedicalRecord::creating` para `EXP-000001` incremental.
+- Índices y Restricciones:
+  - Únicos: `users.email`, `medical_leaves.folio`, compuesto en `clinic_schedules` (`clinic_name`, `date`, `shift`).
+- Tipos de Datos:
+  - `date`, `datetime`, `boolean`, `text`, `string`, `enum` (via casts), consistentes con necesidades clínicas y de agenda.
+
+5) Mapeo Objeto–Relacional (ORM)
+- Eloquent y Relaciones:
+  - `hasOne`: `Patient -> MedicalRecord`, `MedicalRecord -> NursingAssessment`.
+  - `hasMany`: `MedicalRecord -> Appointments/MedicalLeaves/SomatometricReadings/MedicalDocuments`.
+  - `belongsTo`: `Appointment -> MedicalRecord/Service/User`, `ClinicSchedule -> User/Service`.
+- Scopes y Consultas:
+  - `ClinicSchedule::scopeOpen/scopeClosed` para filtrar turnos.
+- Accessors/Mutators:
+  - `Patient::getAgeAttribute` calcula edad desde `date_of_birth`.
+- Eventos de Modelo:
+  - `creating`, `created`, `booted` aplicados para inicializaciones y consistencia.
+- Soft Deletes:
+  - `User` y `MedicalLeave` usan `SoftDeletes` con `deleted_at` en migraciones.
+
+6) Desarrollo Frontend y UI/UX
+- Reactividad (Livewire 3 en Filament):
+  - Formularios con dependencias dinámicas y campos `->live()` (p. ej. turno y consultorio activo en `AppointmentForm`).
+- Alpine.js y Tailwind CSS:
+  - Estilos y componentes de Filament; páginas Blade personalizadas (`shift-management.blade.php`) con utilidades Tailwind.
+- Componentes de UI:
+  - Tablas (`Tables/*`), Formularios (`Schemas/*`), Modales (acciones en `ViewPatient`), Infolists y Widgets de dashboard.
+- Consistencia y Accesibilidad:
+  - Reutilización de schemas para que `View` sea idéntico al `Form`; badges y colores normalizados con Enums.
+
+7) Business Intelligence y Visualización de Datos
+- Agregación de Datos:
+  - Métricas por periodo, estados y categorías mediante consultas y `groupBy` en widgets y exportadores.
+- KPIs y Dashboards:
+  - Páginas de reportes (`IndicadoresPacientes/Servicios/Visitas`) agrupan widgets para enfoque temático.
+- Librería de Gráficas:
+  - `Leandrocfe\FilamentApexCharts` con `ApexChartWidget` (Tipos de Paciente, Estado de Visitas, Visitas por Médico, Servicios solicitados, Visitas semanales, Nuevos vs Recurrentes).
+- Exportación de Datos:
+  - `Maatwebsite/excel` (`PatientsExport`) genera reportes tabulares con encabezados y mapeos.
+- Reportes y Documentos PDF:
+  - `Barryvdh\DomPDF` con `PdfGeneratorController::downloadMedicalLeave` y plantilla Blade `pdf/medical_leave.blade.php`.
+
+8) Redes y Servicios Web (APIs)
+- REST y JSON:
+  - `ApiController::searchPatient` y `storeVisit` responden JSON con códigos HTTP adecuados (400, 404, 201, 500) y validación de entrada.
+- Autenticación:
+  - Tokens vía `Laravel Sanctum` (`HasApiTokens` en `User`); rutas web protegidas con `auth`.
+- Middleware:
+  - Seguridad y políticas: `Authenticate`, `VerifyCsrfToken`, `SubstituteBindings`; negocio: `check.shift` aplicado en el panel.
+- Notificaciones en tiempo real (pull):
+  - `databaseNotifications()` y `databaseNotificationsPolling('10s')` en el panel para alertas de nuevas visitas.
+
+Evidencias y Referencias (no exhaustivo)
+- Controladores: `app/Http/Controllers/ApiController.php`, `PdfGeneratorController.php`.
+- Modelos y Enums: `app/Models/*`, `app/Enums/*`.
+- Providers: `app/Providers/Filament/DashboardPanelProvider.php`.
+- Middleware: `app/Http/Middleware/CheckShiftStatus.php`.
+- Páginas/Widgets: `app/Filament/Pages/*`, `app/Filament/Widgets/*`.
+- Migraciones: `database/migrations/*` incluyendo secuencias y claves foráneas.
+- Plantillas: `resources/views/filament/*`, `resources/views/pdf/medical_leave.blade.php`.
+
+Conclusión
+- SIGES‑PROGRESO integra sólidamente prácticas modernas de Laravel/Filament para digitalización clínica (Sprint 1) y análisis BI (Sprint 2). La arquitectura modular, el uso de Enums, eventos de Eloquent, middleware de negocio, dashboards de KPIs, exportación y generación de PDFs vinculan teoría académica con resultados prácticos y mantenibles.

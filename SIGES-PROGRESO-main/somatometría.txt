@@ -1,0 +1,152 @@
+Sección: Somatometría (Signos Vitales y Medidas Antropométricas)
+
+Propósito
+- Registrar de manera estandarizada los signos vitales y medidas antropométricas de un paciente durante su atención clínica.
+- Proveer datos objetivos que apoyen decisiones médicas, seguimiento y cumplimiento regulatorio.
+
+Modelo y Campos
+- Modelo: App\Models\SomatometricReading
+- Relaciones:
+  - medical_record_id: referencia al expediente (MedicalRecord)
+  - appointment_id: referencia opcional a la visita (Appointment)
+  - user_id: profesional que registró la lectura
+- Campos de signos vitales y medidas:
+  - blood_pressure_systolic: presión sistólica (mmHg)
+  - blood_pressure_diastolic: presión diastólica (mmHg)
+  - heart_rate: frecuencia cardiaca (lpm)
+  - respiratory_rate: frecuencia respiratoria (rpm)
+  - temperature: temperatura corporal (°C)
+  - weight: peso (kg)
+  - height: talla (m)
+  - blood_glucose: glucosa capilar (mg/dL)
+  - oxygen_saturation: saturación de O2 (%)
+  - observations: texto libre para notas clínicas relacionadas a la toma
+
+Seguridad y Cumplimiento
+- Cifrado at-rest:
+  - observations: cast encrypted para proteger PHI en reposo
+- Auditoría (spatie/laravel-activitylog):
+  - El modelo registra create/update/delete con descripción “Somatometría {evento}”
+  - Metadatos capturados en cada evento: medical_record_id, IP del cliente, user agent, ruta, rol del usuario
+
+Flujo de Captura (UI)
+- Ubicación habitual: pestaña/relación “Somatometría” dentro del expediente (MedicalRecord) en Filament
+- Captura mínima:
+  - Seleccionar la visita (appointment) en curso si aplica
+  - Ingresar signos vitales y medidas
+  - Registrar observaciones clínicas (encriptadas)
+- Lectura y revisión:
+  - Las entradas se listan cronológicamente (más recientes primero)
+  - Cada registro puede mostrar valores y notas; los cambios quedan auditados en “Historial de Cambios” del expediente
+
+Validación y Rango Referencial (operativa)
+- Presión arterial (adulto): sistólica 100–140, diastólica 60–90
+- FC: 60–100 lpm; FR: 12–20 rpm; Temp: 36.0–38.0 °C
+- Glucosa capilar: 70–140 mg/dL (ayuno y postprandial varían)
+- O2 Sat: 95–100 %
+- Las validaciones pueden configurarse para alertar fuera de rango sin bloquear el registro, dejando criterio clínico al usuario
+
+Integración con Visitas
+- Si appointment_id se vincula a una visita en progreso o completada:
+  - Permite correlacionar las medidas con la atención brindada
+  - Favorece reportes por visita y evolución
+- Si no existe visita (flujo de ingreso rápido):
+  - El registro queda ligado al expediente y puede asociarse a una visita posteriormente
+
+Reportes y Análisis
+- Tablas/Widgets pueden calcular promedios, últimas lecturas y tendencias (no reemplazan gráficas BI)
+- Exportación: lecturas auditadas y con PHI protegida en texto encriptado (observations)
+
+Buenas Prácticas Operativas
+- Registrar signos vitales antes de procedimientos o consulta para línea base
+- Documentar observaciones relevantes (síntomas, condiciones de toma, anomalías)
+- Mantener consistencia de unidades y formatos (mmHg, °C, kg, m)
+- Asegurar identidad del profesional registrante (user_id) para trazabilidad
+
+Errores y Manejo
+- Intentos de lectura con valores no numéricos: validar y notificar al usuario
+- Missing appointment_id: permitir registro pero advertir asociación posterior
+- Excepciones de base de datos: envolver la creación en transacción cuando se registre junto con otras entidades
+
+API y Payloads de Ejemplo
+- Alta ligada a expediente (sin visita):
+  Request (JSON):
+  {
+    "medical_record_id": 123,
+    "user_id": 7,
+    "blood_pressure_systolic": 118,
+    "blood_pressure_diastolic": 76,
+    "heart_rate": 72,
+    "respiratory_rate": 14,
+    "temperature": 36.8,
+    "weight": 68.5,
+    "height": 1.72,
+    "blood_glucose": 98,
+    "oxygen_saturation": 98,
+    "observations": "Paciente en reposo, sin dolor"
+  }
+  Response (201):
+  {
+    "id": 456,
+    "medical_record_id": 123,
+    "appointment_id": null,
+    "created_at": "2025-11-14T21:52:07Z"
+  }
+
+- Alta ligada a visita (en progreso o completada):
+  Request (JSON):
+  {
+    "appointment_id": 789,
+    "user_id": 7,
+    "blood_pressure_systolic": 130,
+    "blood_pressure_diastolic": 85,
+    "heart_rate": 80,
+    "respiratory_rate": 16,
+    "temperature": 37.2,
+    "oxygen_saturation": 97,
+    "observations": "Dolor abdominal, náusea leve"
+  }
+  Response (201):
+  {
+    "id": 457,
+    "medical_record_id": 123,
+    "appointment_id": 789,
+    "created_at": "2025-11-14T21:56:11Z"
+  }
+
+- Errores comunes:
+  Response (422):
+  {
+    "message": "Datos inválidos",
+    "errors": {
+      "medical_record_id": ["El campo medical_record_id o appointment_id es requerido"],
+      "blood_pressure_systolic": ["Debe ser numérico"],
+      "temperature": ["Fuera de rango permitido"]
+    }
+  }
+
+Checklist de Validaciones
+- Identificadores:
+  - Requerir al menos uno: medical_record_id o appointment_id
+  - Verificar existencia en BD (FKs válidas)
+- Tipos y rangos:
+  - Presión arterial: enteros positivos, PA sistólica > diastólica
+  - Frecuencias/temperatura/glucosa/oxígeno: numéricos, rangos operativos
+  - Peso/altura: positivos, altura en metros, peso en kg
+- Consistencia:
+  - Unidades homogéneas (mmHg, °C, kg, m)
+  - Redondeos razonables (1 decimal para temp/peso, 2 para altura)
+  - Observations: texto, cifrado at-rest
+- Contexto clínico:
+  - Si appointment_id, debe pertenecer al mismo expediente que medical_record_id (si ambos se envían)
+  - Registrar user_id del profesional
+- Auditoría y seguridad:
+  - Registrar evento con LogsActivity
+  - Adjuntar metadatos: IP, user agent, ruta, rol del usuario
+- Respuestas HTTP:
+  - 201 creado, 422 validación, 404 no encontrado, 500 error interno (registrado en logs)
+
+Buenas Prácticas de API
+- Cabeceras: Accept: application/json; Content-Type: application/json; Authorization: Bearer <TOKEN>
+- Transacciones: uso de DB::beginTransaction/commit/rollBack si se crea junto con otras entidades
+- Mensajes: detallados y consistentes para UX clínica
