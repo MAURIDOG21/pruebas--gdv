@@ -173,5 +173,6 @@ La justificación para el desarrollo del Sistema Electrónico de Expedientes Cl�
 - Borrado masivo en gestor de documentos: `app/Filament/Resources/MedicalRecords/RelationManagers/MedicalDocumentsRelationManager.php:77-79`.
 
 ---
+## practicas nuevas erassss 
 
 > Nota: Este Markdown conserva la estructura esencial del documento original y agrega secciones técnicas actualizadas con referencias al código vigente para facilitar su mantenimiento.
